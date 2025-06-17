@@ -1,6 +1,8 @@
+import asyncio
 import re
 from textwrap import dedent
 from typing import Any, Optional, cast
+from urllib.parse import quote
 
 import markdown2
 from bs4 import BeautifulSoup, Tag
@@ -18,15 +20,19 @@ class BitcoinETFHoldings(BaseModel):
     website_url: str
     bitcoin_quantity: Optional[float]  # Number of Bitcoin held
     bitcoin_quantity_unit: str  # "BTC" or "Bitcoin" etc.
-    # total_net_assets: Optional[str]  # Total fund value if visible
-    # as_of_date: Optional[str]  # Date of the holdings data
-    # data_found: bool  # Whether Bitcoin holdings data was successfully extracted
+    total_net_assets: Optional[str]  # Total fund value if visible
+    as_of_date: Optional[str]  # Date of the holdings data
+    data_found: bool  # Whether Bitcoin holdings data was successfully extracted
     notes: Optional[str]  # Any additional relevant information
+
+
 
 class HoldingInfoSelector(BaseModel):
     """A model to hold the CSS selector for the relevant holdings information."""
     selector: str = Field(description="The most specific CSS selector for the element containing the holdings information.")
     reason: str = Field(description="A brief explanation of why this selector was chosen.")
+
+
 
 async def find_best_selector_for_bitcoin_holdings(
     screenshot_url: str,
@@ -118,7 +124,6 @@ async def screenshot_and_extract_bitcoin_holdings(
     logger.info("[3/3] Executing focused scrape for selector '%s'", selector_result.selector)
     focused_content = await screenshot(url, selector=selector_result.selector, initial_actions=initial_actions)
 
-
     def extract_element_by_selector(html: str, selector: str) -> str:
         soup = BeautifulSoup(html, "html.parser")
         selected_element = soup.select_one(selector)
@@ -126,6 +131,7 @@ async def screenshot_and_extract_bitcoin_holdings(
 
     selected_html = extract_element_by_selector(page_content.dom, selector_result.selector)
     focused_markdown = markdown2.markdown(selected_html)
+    logger.info("focused_markdown: %s", focused_markdown)
 
     special_note = f"\n\nSpecial instructions: {special_instructions}" if special_instructions else ""
     extraction_prompt = dedent(
@@ -170,6 +176,10 @@ async def extract_ibit_holdings() -> BitcoinETFHoldings:
 
 
 def get_daily_params_from_dom(dom: str) -> dict:
+    """
+    Parses the static DOM to find the parameters for the 'Daily Holdings' tab
+    by looking inside its onclick attribute.
+    """
     soup = BeautifulSoup(dom, "html.parser")
     # Find the table cell (td) for the Daily Holdings tab
     daly_tab_td = soup.find('a', id='DALYTab').find_parent('td')
@@ -200,9 +210,31 @@ def get_daily_params_from_dom(dom: str) -> dict:
     }
 
 
-async def extract_fidelity_holdings() -> BitcoinETFHoldings:
-    base_url = "https://www.actionsxchangerepository.fidelity.com/ShowDocument/ComplianceEnvelope.htm?_fax=-18%2342%23-61%23-110%23114%2378%23117%2320%23-1%2396%2339%23-62%23-21%2386%23-100%2337%2316%2335%23-68%2391%23-66%2354%23103%23-16%2369%23-30%2358%23-20%2376%23-84%23-11%23-87%230%23-50%23-20%23-92%23-98%23-116%23-28%2358%23-38%23-43%23-39%23-42%23-96%23-88%2388%23-45%23105%23-76%2367%23125%23123%23-122%23-5%2319%23-74%235%23-89%23-105%23-67%23126%2377%23-126%23100%2345%23-44%23-73%23-15%238%23-21%23-37%23-17%23-14%23-98%23123%23-18%2345%23-59%23-82%2367%2383%23112%2317%2370%23-78%2378%23-50%2336%23-86%23-90%2381%23-21%23-119%23-30%23120%2349%2328%23-98%2333%2351%23-78%23-119%23-16%2350%23-58%2350%23102%2348%23-17%2352%23-99%23"
 
+
+async def extract_fidelity_holdings() -> BitcoinETFHoldings:
+    """
+    Fidelity Wise Origin Bitcoin Fund (FBTC) extraction.
+    Dynamically constructs the Daily Holdings PDF URL from the page.
+    """
+    base_url = "https://www.actionsxchangerepository.fidelity.com/ShowDocument/ComplianceEnvelope.htm?_fax=-18%2342%23-61%23-110%23114%2378%23117%2320%23-1%2396%2339%23-62%23-21%2386%23-100%2337%2316%2335%23-68%2391%23-66%2354%23103%23-16%2369%23-30%2358%23-20%2376%23-84%23-11%23-87%230%23-50%23-20%23-92%23-98%23-116%23-28%2358%23-38%23-43%23-39%23-42%23-96%23-88%2388%23-45%23105%23-76%2367%23125%23123%23-122%23-5%2319%23-74%235%23-89%23-105%23-67%23126%2377%23-126%23100%2345%23-44%23-73%23-15%238%23-21%23-37%23-17%23-14%23-98%23123%23-18%2345%23-59%23-82%2367%2383%23112%2317%2370%23-78%2378%23-50%2336%23-86%23-90%2381%23-21%23-119%23-30%23120%2349%2328%23-98%2333%2351%23-78%23-119%23-16%2350%23-58%2350%23102%2348%23-17%2352%23-99%23"
+    #
+    # # First, get the page content with DOM
+    # page_content = await scrape(
+    #     url=base_url,
+    #     response_format="rawHtml"
+    # )
+    #
+    # # Extract Daily Holdings parameters from the onclick handler
+    # daily_params = extract_daily_holdings_params(page_content.content)
+    #
+    # if not daily_params:
+    #     raise ValueError("Could not extract Daily Holdings parameters from page")
+
+    # Construct the PDF viewer URL
+    # pdf_url = f"https://www.actionsxchangerepository.fidelity.com/ShowDocument/documentPDF.htm?{daily_params['query_string']}"
+
+    # logger.info(f"Constructed Daily Holdings PDF URL: {pdf_url}")
     code = """
         function openDailyHoldings() {
       const dailyLink = document.getElementById('DALYTab');
@@ -217,6 +249,8 @@ async def extract_fidelity_holdings() -> BitcoinETFHoldings:
     openDailyHoldings();
 """
 
+
+
     # Now screenshot the PDF viewer
     result = await screenshot(
         url=base_url,
@@ -229,6 +263,8 @@ async def extract_fidelity_holdings() -> BitcoinETFHoldings:
             {"type": "screenshot"},
         ]
     )
+
+    logger.info(f"Screenshot result: {result}")
 
     # Extract holdings data from the screenshot
     custom_prompt = (
@@ -253,6 +289,53 @@ async def extract_fidelity_holdings() -> BitcoinETFHoldings:
 
     return holdings
 
+
+def extract_daily_holdings_params(html_content: str) -> dict:
+    """
+    Extracts the Daily Holdings parameters from the page HTML.
+    """
+    # Look for the DALY tab onclick handler
+    pattern = r"getDocumentMenu\('Fidelity','MFL','DALY',[^)]+\)"
+    match = re.search(pattern, html_content)
+
+    if not match:
+        return None
+
+    # Extract the parameters from the function call
+    # The onclick looks like: getDocumentMenu('Fidelity','MFL','DALY','application/pdf','315948109','CUSIP','973015','false','false','true','','June 16, 2025','_fax=...','','false',this,'N','','1.WOB-DALY.pdf','false',0,'1750103728122','true','1.WOB-DALY.excel8book','_fax=...')
+
+    # Find the specific parameters we need
+    onclick_content = match.group(0)
+
+    # Extract collectionId (7th parameter)
+    collection_match = re.search(r"'CUSIP','(\d+)'", onclick_content)
+    collection_id = collection_match.group(1) if collection_match else "973015"
+
+    # Extract PDF filename
+    pdf_match = re.search(r"'([^']*\.pdf)'", onclick_content)
+    pdf_name = pdf_match.group(1) if pdf_match else "1.WOB-DALY.pdf"
+
+    # Build query string
+    query_params = {
+        "clientId": "Fidelity",
+        "applicationId": "MFL",
+        "securityId": "315948109",
+        "docType": "DALY",
+        "docFormat": "pdf",
+        "securityIdType": "CUSIP",
+        "collectionId": collection_id,
+        "docName": pdf_name,
+        "criticalIndicator": "N",
+        "pdfReaderStatus": "Y"
+    }
+
+    query_string = "&".join([f"{k}={quote(v)}" for k, v in query_params.items()])
+
+    return {
+        "collection_id": collection_id,
+        "pdf_name": pdf_name,
+        "query_string": query_string
+    }
 
 async def extract_gbtc_holdings() -> BitcoinETFHoldings:
     """Grayscale Bitcoin Trust (GBTC)"""
@@ -310,21 +393,16 @@ async def extract_ezbc_holdings() -> BitcoinETFHoldings:
         url="https://www.franklintempleton.com/investments/options/exchange-traded-funds/products/39639/SINGLCLASS/franklin-bitcoin-etf/EZBC",
         etf_symbol="EZBC"
     )
-
 async def extract_btcw_holdings() -> BitcoinETFHoldings:
     """WisdomTree Bitcoin Fund (BTCW), manual robust extraction."""
     url = "https://www.wisdomtree.com/investments/etfs/crypto/btcw"
+    etf_symbol = "BTCW"
     selector = 'a.fund-modal-trigger[data-href*="all-current-day-holdings"]'  # Button to reveal modal
+    # holdings_modal_selector = "#modalD64B125869D04E7298F97A6F45C42738"        # Modal with the table (unique to this fund/page)
 
     # Actions: open the modal!
     actions = [
-        {"type": "scroll", "direction": "down"},
-        {"type": "scroll", "direction": "down"},
-        {"type": "scroll", "direction": "down"},
-        {"type": "scroll", "direction": "down"},
-        {"type": "scroll", "direction": "down"},
-        {"type": "scroll", "direction": "down"},
-        {"type": "scroll", "direction": "down"},
+        {"type": "scroll", "to": "bottom"},
         {"type": "wait", "milliseconds": 1200},
         {"type": "click", "selector": selector},
         {"type": "wait", "milliseconds": 3500},
