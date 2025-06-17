@@ -3,11 +3,13 @@ services:
     name: fastapi-render-boilerplate
     env: python
     plan: starter
-    buildCommand: uv sync
-    startCommand: uv run uvicorn main:app --host 0.0.0.0 --port $PORT
+    buildCommand: "poetry install --no-root"
+    startCommand: "poetry run uvicorn main:app --host 0.0.0.0 --port 8000"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: POETRY_VERSION
+        value: 1.7.1  # Or whatever you prefer
       - key: ENVIRONMENT
         value: production
       - key: DEBUG
