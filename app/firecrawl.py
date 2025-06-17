@@ -147,12 +147,30 @@ async def scrape(
     return ScrapeResult(url=response_url, title=title, content=content)
 
 
-# Overloads for screenshot function
+
 @overload
 async def screenshot(
     url: str,
     *,
     selector: str,
+    initial_actions: Optional[List[Dict[str, Any]]] = None
+) -> FocusedResult: ...
+
+@overload
+async def screenshot(
+    url: str,
+    *,
+    selector: str,
+    full_page: Literal[True],
+    initial_actions: Optional[List[Dict[str, Any]]] = None
+) -> FocusedResult: ...
+
+@overload
+async def screenshot(
+    url: str,
+    *,
+    selector: str,
+    full_page: Literal[False],
     initial_actions: Optional[List[Dict[str, Any]]] = None
 ) -> FocusedResult: ...
 
@@ -171,20 +189,14 @@ async def screenshot(
     url: str,
     *,
     full_page: bool = True,
-    include_dom: Literal[False],
+    include_dom: Literal[False] = False,  # Add default here
     selector: None = None,
     initial_actions: Optional[List[Dict[str, Any]]] = None
 ) -> ScreenshotResult: ...
 
-@overload
-async def screenshot(
-    url: str,
-    *,
-    full_page: bool = True,
-    include_dom: bool = False,
-    selector: None = None,
-    initial_actions: Optional[List[Dict[str, Any]]] = None
-) -> Union[ScreenshotResult, ScreenshotAndDOMResult]: ...
+# Remove the problematic last overload since it's covered by the others
+
+
 
 
 @retry(
@@ -202,7 +214,7 @@ async def screenshot(
 ) -> Union[ScreenshotResult, ScreenshotAndDOMResult, FocusedResult]:
     """
     Take a screenshot of a webpage with multiple modes.
-    
+
     - Default Mode: Takes a simple screenshot. Returns ScreenshotResult.
     - DOM Mode (include_dom=True): Takes a screenshot and gets the full DOM.
       Returns ScreenshotAndDOMResult.
@@ -219,24 +231,24 @@ async def screenshot(
             {"type": "screenshot"},
             {"type": "scrape", "selector": selector},
         ]
-        
+
         payload = {
             **default_scrape_payload(),
             "url": url,
             "actions": actions,
             "formats": [],
         }
-        
+
         data = await call_firecrawl("v1/scrape", payload)
-        
+
         try:
             action_data = data["data"]["actions"]
             focused_screenshot_url = action_data["screenshots"][0]
             focused_html = action_data["scrapes"][0]["html"]
-            
+
             if not focused_screenshot_url or not focused_html:
                 raise KeyError("Missing screenshot or HTML in action response")
-                
+
             return FocusedResult(
                 screenshot_url=focused_screenshot_url,
                 html_content=focused_html
@@ -256,7 +268,7 @@ async def screenshot(
             "url": url,
             "formats": formats
         }
-        
+
         if initial_actions:
             payload["actions"] = initial_actions
 
@@ -266,7 +278,7 @@ async def screenshot(
             source_url = data["data"]["metadata"]["sourceURL"]
             title = data["data"]["metadata"].get("title", "")
             screenshot_url = data["data"]["screenshot"]
-            
+
             if not isinstance(screenshot_url, str) or not screenshot_url.startswith("https://"):
                 raise FirecrawlResponseFormatError(f"Invalid screenshot URL: {screenshot_url}")
 
@@ -288,4 +300,3 @@ async def screenshot(
                 )
         except KeyError as e:
             raise FirecrawlResponseFormatError(f"Missing expected key in standard response: {e}") from e
-

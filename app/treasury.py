@@ -1,4 +1,3 @@
-import asyncio
 import re
 from textwrap import dedent
 from typing import Any, Optional, cast
@@ -99,35 +98,97 @@ def preprocess_html_for_analysis(html_content: str) -> str:
 
     return str(element_to_clean.prettify())
 
+
 async def screenshot_and_extract_bitcoin_holdings(
-    url: str,
-    etf_symbol: str,
-    special_instructions: Optional[str] = None,
-    initial_actions: Optional[list[Any]] = None,
+        url: str,
+        etf_symbol: str,
+        recommended_selector: Optional[str] = None,
+        special_instructions: Optional[str] = None,
+        initial_actions: Optional[list[Any]] = None,
 ) -> "BitcoinETFHoldings":
     """
     Extracts Bitcoin ETF holdings via a robust, token-efficient, multi-stage AI process.
+    recommended_selector: Optional[str] – If provided, a CSS selector that will be tried first; the function falls back to AI discovery if it fails.
     """
+    # --- Fast‑path: use the recommended selector first -----------------------
+    if recommended_selector:
+        logger.info("[Direct] Attempting focused scrape with recommended selector '%s' for %s",
+                    recommended_selector, etf_symbol)
+        try:
+            focused_content = await screenshot(
+                url,
+                selector=cast(str, recommended_selector),
+                full_page=False,
+                initial_actions=initial_actions,
+            )
+
+            # Extract element HTML for markdown conversion
+            page_content = await screenshot(url, include_dom=True, initial_actions=initial_actions)
+            selected_html = extract_element_by_selector(page_content.dom, recommended_selector)
+            focused_markdown = markdown2.markdown(selected_html)
+
+            logger.info("[Direct] focused_markdown length: %d", len(focused_markdown))
+
+            special_note = f"\n\nSpecial instructions: {special_instructions}" if special_instructions else ""
+            extraction_prompt = dedent(
+                f"""
+                Analyze the focused screenshot from the {etf_symbol} ETF website and the focused markdown content.
+
+                {focused_markdown}
+
+                website_url: {url}
+
+                **Your task**: From this focused context, extract the data fields for the BitcoinETFHoldings model.
+
+                etf_symbol: str
+                etf_name: str
+                website_url: str
+                bitcoin_quantity: Optional[float]  # Number of Bitcoin held
+                bitcoin_quantity_unit: str        # "BTC" or "Bitcoin" etc.
+                total_net_assets: Optional[str]   # Total fund value if visible
+                as_of_date: Optional[str]         # Date of the holdings data
+                data_found: bool                  # Whether Bitcoin holdings data was successfully extracted
+                notes: Optional[str]
+
+                {special_note}
+                """
+            ).strip()
+
+            holdings: BitcoinETFHoldings = await call_gemini(
+                prompt=extraction_prompt,
+                pydantic_model=BitcoinETFHoldings,
+                temperature=0.2,
+                images=[focused_content.screenshot_url],
+            )
+
+            # If the model found data, short‑circuit and return.
+            if holdings.data_found:
+                logger.info("[Direct] Extraction with recommended selector succeeded for %s", etf_symbol)
+                return holdings
+            else:
+                logger.info("[Direct] Gemini returned data_found=False; will fall back to AI-driven discovery.")
+
+        except Exception as e:
+            logger.exception("[Direct] Focused scrape via recommended selector failed: %s – falling back.", e)
+
+    # ------------------------------------------------------------------------
+    # If we get here, either no recommended selector or it failed
     logger.info("[1/3] Fetching initial page content for %s from %s", etf_symbol, url)
     page_content = await screenshot(url, include_dom=True, initial_actions=initial_actions)
 
     logger.info("[2/3] Preprocessing DOM for %s to reduce token usage", etf_symbol)
     preprocessed_dom = preprocess_html_for_analysis(page_content.dom)
 
-    logger.info("[2/3] Identifying best data selector for %s", etf_symbol)
+    # 2/3 – Selector discovery (AI-driven since recommended failed or wasn't provided)
+    logger.info("[2/3] Using AI to discover best selector for %s", etf_symbol)
     selector_result = await find_best_selector_for_bitcoin_holdings(
         screenshot_url=page_content.screenshot_url,
         preprocessed_dom=preprocessed_dom,
         etf_symbol=etf_symbol,
     )
 
-    logger.info("[3/3] Executing focused scrape for selector '%s'", selector_result.selector)
+    logger.info("[3/3] Executing focused scrape for AI-discovered selector '%s'", selector_result.selector)
     focused_content = await screenshot(url, selector=selector_result.selector, initial_actions=initial_actions)
-
-    def extract_element_by_selector(html: str, selector: str) -> str:
-        soup = BeautifulSoup(html, "html.parser")
-        selected_element = soup.select_one(selector)
-        return str(selected_element) if selected_element else ""
 
     selected_html = extract_element_by_selector(page_content.dom, selector_result.selector)
     focused_markdown = markdown2.markdown(selected_html)
@@ -165,6 +226,13 @@ async def screenshot_and_extract_bitcoin_holdings(
         images=[focused_content.screenshot_url],
     )
     return holdings
+
+
+def extract_element_by_selector(html: str, selector: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+    selected_element = soup.select_one(selector)
+    return str(selected_element) if selected_element else ""
+
 
 # Individual ETF extraction functions
 async def extract_ibit_holdings() -> BitcoinETFHoldings:
@@ -391,8 +459,13 @@ async def extract_ezbc_holdings() -> BitcoinETFHoldings:
     """Franklin Bitcoin ETF (EZBC)"""
     return await screenshot_and_extract_bitcoin_holdings(
         url="https://www.franklintempleton.com/investments/options/exchange-traded-funds/products/39639/SINGLCLASS/franklin-bitcoin-etf/EZBC",
-        etf_symbol="EZBC"
+        etf_symbol="EZBC",
+        recommended_selector="#portfolio-holdings",
+        initial_actions=[
+            {"type": "wait", "selector": "#portfolio-holdings"},
+        ]
     )
+
 async def extract_btcw_holdings() -> BitcoinETFHoldings:
     """WisdomTree Bitcoin Fund (BTCW), manual robust extraction."""
     url = "https://www.wisdomtree.com/investments/etfs/crypto/btcw"
