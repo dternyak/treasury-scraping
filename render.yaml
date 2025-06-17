@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: fastapi-render-boilerplate
+    env: python
+    plan: starter
+    buildCommand: uv sync
+    startCommand: uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        fromService:
+          type: web
+          name: fastapi-render-boilerplate
+          property: port
+      - key: FIRECRAWL_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_NAME
+        value: FastAPI Render Boilerplate
+      - key: APP_VERSION
+        value: 1.0.0
+

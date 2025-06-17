@@ -1,0 +1,58 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level info
+    environment:
+      - PYTHONASYNCIODEBUG=1
+      - HOST_MACHINE_IP=host.docker.internal
+      - REDIS_HOST=redis
+      - ENVIRONMENT=local
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/code/app
+      - ./.env:/code/.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    sysctls:
+      - net.ipv4.ip_local_port_range=1024 65535
+      - net.ipv4.tcp_tw_reuse=1
+    ulimits:
+      nofile:
+        soft: 50000
+        hard: 50000
+
+#  redis:
+#    image: redis:alpine
+#    command: redis-server --maxclients 10000
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - redis-data:/data
+#    healthcheck:
+#      test: ["CMD-SHELL", "redis-cli ping | grep PONG || exit 1"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 5
+#      start_period: 10s
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '1'
+#          memory: 1G
+#        reservations:
+#          cpus: '0.5'
+#          memory: 512M
+
+
+networks:
+  default:
+    name: fastapi_app_network
+
