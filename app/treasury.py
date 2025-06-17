@@ -18,19 +18,15 @@ class BitcoinETFHoldings(BaseModel):
     website_url: str
     bitcoin_quantity: Optional[float]  # Number of Bitcoin held
     bitcoin_quantity_unit: str  # "BTC" or "Bitcoin" etc.
-    total_net_assets: Optional[str]  # Total fund value if visible
-    as_of_date: Optional[str]  # Date of the holdings data
-    data_found: bool  # Whether Bitcoin holdings data was successfully extracted
+    # total_net_assets: Optional[str]  # Total fund value if visible
+    # as_of_date: Optional[str]  # Date of the holdings data
+    # data_found: bool  # Whether Bitcoin holdings data was successfully extracted
     notes: Optional[str]  # Any additional relevant information
-
-
 
 class HoldingInfoSelector(BaseModel):
     """A model to hold the CSS selector for the relevant holdings information."""
     selector: str = Field(description="The most specific CSS selector for the element containing the holdings information.")
     reason: str = Field(description="A brief explanation of why this selector was chosen.")
-
-
 
 async def find_best_selector_for_bitcoin_holdings(
     screenshot_url: str,
@@ -121,6 +117,7 @@ async def screenshot_and_extract_bitcoin_holdings(
 
     logger.info("[3/3] Executing focused scrape for selector '%s'", selector_result.selector)
     focused_content = await screenshot(url, selector=selector_result.selector, initial_actions=initial_actions)
+
 
     def extract_element_by_selector(html: str, selector: str) -> str:
         soup = BeautifulSoup(html, "html.parser")

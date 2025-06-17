@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/test-screenshot")
+@router.get("/get-daily-holdings")
 async def test_screenshot():
     ETF_EXTRACTOR_FUNCS = [
         extract_ibit_holdings,
