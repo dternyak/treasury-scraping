@@ -4,8 +4,8 @@ import asyncio
 
 from fastapi import APIRouter
 
-from .logger import get_logger
-from .treasury import (
+from app.logger import get_logger
+from app.treasury import (
     BitcoinETFHoldings,
     extract_arkb_holdings,
     extract_bitb_holdings,
@@ -27,18 +27,18 @@ router = APIRouter()
 @router.get("/test-screenshot")
 async def test_screenshot():
     ETF_EXTRACTOR_FUNCS = [
-        # extract_ibit_holdings,
-        # extract_fidelity_holdings,
-        # extract_gbtc_holdings,
-        # extract_arkb_holdings,
-        # extract_btc_mini_holdings,
-        # extract_bitb_holdings,
-        # extract_hodl_holdings,
-        # extract_brrr_holdings,
-        # # extract_btco_holdings, # TODO - problem
-        # extract_ezbc_holdings,
+        extract_ibit_holdings,
+        extract_fidelity_holdings,
+        extract_gbtc_holdings,
+        extract_arkb_holdings,
+        extract_btc_mini_holdings,
+        extract_bitb_holdings,
+        extract_hodl_holdings,
+        extract_brrr_holdings,
+        # extract_btco_holdings, # TODO - problem
+        extract_ezbc_holdings,
         extract_btcw_holdings,
-        # extract_defi_holdings,
+        extract_defi_holdings,
     ]
 
     async def run_all_extractors() -> list[BitcoinETFHoldings]:

@@ -11,7 +11,7 @@ from pydantic import BaseModel, ValidationError
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from app.config import settings
-from .logger import get_logger
+from app.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -192,33 +192,4 @@ async def call_gemini(
     return txt
 
 
-async def analyze_content(
-    content: str,
-    analysis_prompt: str,
-    *,
-    model: str = DEFAULT_MODEL,
-    temperature: float = 0.3,
-    images: Optional[List[str]] = None
-) -> str:
-    """
-    Analyze content using Gemini AI.
-    
-    Args:
-        content: Content to analyze
-        analysis_prompt: Prompt describing what analysis to perform
-        model: Gemini model to use
-        temperature: Sampling temperature
-        images: Optional images to include in analysis
-        
-    Returns:
-        Analysis result as string
-    """
-    full_prompt = f"{analysis_prompt}\n\nContent to analyze:\n{content}"
-    
-    return await call_gemini(
-        prompt=full_prompt,
-        model=model,
-        temperature=temperature,
-        images=images
-    )
 

@@ -58,7 +58,6 @@ app.add_middleware(
 # Include API routes
 app.include_router(api_router, prefix=settings.API_PATH, tags=["api"])
 
-
 @app.get("/")
 async def root() -> dict[str, str]:
     """Root endpoint."""
@@ -77,12 +76,6 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     """Global exception handler."""
     logger = get_logger(__name__)
     logger.error(f"Unhandled exception on {request.url}: {exc}", exc_info=True)
-    
-    # error_response = ErrorResponse(
-    #     error="Internal server error",
-    #     detail=str(exc) if settings.DEBUG else "An unexpected error occurred",
-    #     status_code=500
-    # )
 
     return JSONResponse(
         status_code=500,

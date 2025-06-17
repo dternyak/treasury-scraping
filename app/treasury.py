@@ -129,7 +129,6 @@ async def screenshot_and_extract_bitcoin_holdings(
 
     selected_html = extract_element_by_selector(page_content.dom, selector_result.selector)
     focused_markdown = markdown2.markdown(selected_html)
-    # logger.info("focused_markdown: %s", focused_markdown)
 
     special_note = f"\n\nSpecial instructions: {special_instructions}" if special_instructions else ""
     extraction_prompt = dedent(
@@ -174,10 +173,6 @@ async def extract_ibit_holdings() -> BitcoinETFHoldings:
 
 
 def get_daily_params_from_dom(dom: str) -> dict:
-    """
-    Parses the static DOM to find the parameters for the 'Daily Holdings' tab
-    by looking inside its onclick attribute.
-    """
     soup = BeautifulSoup(dom, "html.parser")
     # Find the table cell (td) for the Daily Holdings tab
     daly_tab_td = soup.find('a', id='DALYTab').find_parent('td')
@@ -208,31 +203,9 @@ def get_daily_params_from_dom(dom: str) -> dict:
     }
 
 
-
-
 async def extract_fidelity_holdings() -> BitcoinETFHoldings:
-    """
-    Fidelity Wise Origin Bitcoin Fund (FBTC) extraction.
-    Dynamically constructs the Daily Holdings PDF URL from the page.
-    """
     base_url = "https://www.actionsxchangerepository.fidelity.com/ShowDocument/ComplianceEnvelope.htm?_fax=-18%2342%23-61%23-110%23114%2378%23117%2320%23-1%2396%2339%23-62%23-21%2386%23-100%2337%2316%2335%23-68%2391%23-66%2354%23103%23-16%2369%23-30%2358%23-20%2376%23-84%23-11%23-87%230%23-50%23-20%23-92%23-98%23-116%23-28%2358%23-38%23-43%23-39%23-42%23-96%23-88%2388%23-45%23105%23-76%2367%23125%23123%23-122%23-5%2319%23-74%235%23-89%23-105%23-67%23126%2377%23-126%23100%2345%23-44%23-73%23-15%238%23-21%23-37%23-17%23-14%23-98%23123%23-18%2345%23-59%23-82%2367%2383%23112%2317%2370%23-78%2378%23-50%2336%23-86%23-90%2381%23-21%23-119%23-30%23120%2349%2328%23-98%2333%2351%23-78%23-119%23-16%2350%23-58%2350%23102%2348%23-17%2352%23-99%23"
-    #
-    # # First, get the page content with DOM
-    # page_content = await scrape(
-    #     url=base_url,
-    #     response_format="rawHtml"
-    # )
-    #
-    # # Extract Daily Holdings parameters from the onclick handler
-    # daily_params = extract_daily_holdings_params(page_content.content)
-    #
-    # if not daily_params:
-    #     raise ValueError("Could not extract Daily Holdings parameters from page")
 
-    # Construct the PDF viewer URL
-    # pdf_url = f"https://www.actionsxchangerepository.fidelity.com/ShowDocument/documentPDF.htm?{daily_params['query_string']}"
-
-    # logger.info(f"Constructed Daily Holdings PDF URL: {pdf_url}")
     code = """
         function openDailyHoldings() {
       const dailyLink = document.getElementById('DALYTab');
@@ -247,8 +220,6 @@ async def extract_fidelity_holdings() -> BitcoinETFHoldings:
     openDailyHoldings();
 """
 
-
-
     # Now screenshot the PDF viewer
     result = await screenshot(
         url=base_url,
@@ -261,8 +232,6 @@ async def extract_fidelity_holdings() -> BitcoinETFHoldings:
             {"type": "screenshot"},
         ]
     )
-
-    # logger.info(f"Screenshot result: {result}")
 
     # Extract holdings data from the screenshot
     custom_prompt = (
